@@ -1,20 +1,39 @@
 import System.IO  
 import Control.Monad
 import Text.ParserCombinators.Parsec
-import Pars
+--import Pars
+import OkrParser
 
-main = do  contents <- readFile "okr2.txt"
-           return contents
+-- 
+fileContents = do  contents <- readFile "okr4.rpt"
+                   return contents
 
-okrs :: GenParser Char st [String]
-okrs = sepBy allC (string "\r\n")
+okrContents :: GenParser Char st [String]
+okrContents =  sepBy okrContent $ string "@\n"
 
-allC :: GenParser Char st String
-allC = do many (noneOf "")
+okrContent :: GenParser Char st String
+okrContent =  many (noneOf "@")    
 
-test = do a <-  main  
-          return ( parse okrs "(unknown)" a )  
+okrContentsTest = do fcnt <- fileContents
+                     return ( parse okrContents "(unknown)" fcnt )
+
+okrTop :: Int -> GenParser Char st [String]
+okrTop n = do okrs <- okrContents 
+              return $ first n okrs  
+
+
+first n xs = map ( \(i,_) -> i) $ zip xs [1..n]  
+
+okrTopTest::Int -> IO (Either ParseError [String])
+okrTopTest n = do fcnt <- fileContents
+                  return $ parse ( okrTop n ) "(unknown)" fcnt 
+-------------------------------------------------                
+
+--okr::n -> IO (Either ParseError [Either ParseError Okr])
+okrTest n = do fParsRes <- okrTopTest  n
+               return $ do x <- fParsRes
+                           return $ map ( \i -> parse okr "(unknown)" i ) x              ---okr
 
 
 
-     
+

@@ -373,6 +373,8 @@ pdkT2 = "PDK 25ФЕВ 26ФЕВ 271"
 ---------------------------------------------------------
 --- ОКР 
 data Okr = Okr OkrHeader OkrAction  deriving Show
+
+okr :: GenParser Char st Okr
 okr = do h <- okrHeader 
          --endLine 
          a <- okrAction  
