@@ -5,7 +5,7 @@ import Text.ParserCombinators.Parsec
 import OkrParser
 
 -- 
-fileContents = do  contents <- readFile "okr4.rpt"
+fileContents = do  contents <- readFile "okr5.rpt"
                    return contents
 
 okrContents :: GenParser Char st [String]
@@ -21,7 +21,6 @@ okrTop :: Int -> GenParser Char st [String]
 okrTop n = do okrs <- okrContents 
               return $ first n okrs  
 
-
 first n xs = map ( \(i,_) -> i) $ zip xs [1..n]  
 
 okrTopTest::Int -> IO (Either ParseError [String])
@@ -32,7 +31,7 @@ okrTopTest n = do fcnt <- fileContents
 --okr::n -> IO (Either ParseError [Either ParseError Okr])
 okrTest n = do fParsRes <- okrTopTest  n
                return $ do x <- fParsRes
-                           return $ map ( \i -> parse okr "(unknown)" i ) x              ---okr
+                           return $ map ( \i -> parse okr "(unknown)" i ) x              ---okrRcps2
 
 
 

@@ -349,6 +349,7 @@ okrAction =   do str "NOV" <|> str "НОВ"
 ------------------------------------------------------
 -- Период дни недели либо дни месяца
 data OkrPeriod =   PerMd  MthWithDays |  PerWd  WeekDaysInterval  deriving Show
+
 -- okrPeriod' = try (mthWithDays >>= (\i -> return $ PerMd i) ) <|> ( weekDaysInterval >>= (\i -> return $ PerWd i) )   -- wo do example
 okrPeriod =     try ( do i <- mthWithDays 
                          return $ PerMd i 

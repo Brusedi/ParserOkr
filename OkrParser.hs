@@ -4,18 +4,21 @@ import Text.ParserCombinators.Parsec
 import Data.Maybe
 import Data.Bool
 import Control.Monad
+import Data.Tuple
 
 -------------------------------------------------------------------------------------------
 --  CONSTANTS
 
-monthsOkrNames = ["ЯНВ","ФЕВ","МАР","АПР","МАЙ","ИЮН","ИЮЛ","АВГ","СЕН","ОКТ","НОЯ","ДЕК"] ;
-
-
+tagMonths = ["ЯНВ","ФЕВ","МАР","АПР","МАЙ","ИЮН","ИЮЛ","АВГ","СЕН","ОКТ","НОЯ","ДЕК"] ;
+tagActNew = [ "NOV", "НОВ" ]
+tagActEdt = [ "IZM", "ИЗМ" ]
+tagActDel = [ "OTM", "ОТМ" ]
+tagPdk    = [ "ПДК", "PDK" ]
 
 ---------------------------------------------------
 --- STRUCTS 
 --- ОКР 
-data Okr = Okr OkrRcps OkrHeader deriving Show            --OkrHeader OkrAction  deriving Show // TODO
+data Okr = Okr OkrRcps OkrHeader -- OkrAction  deriving Show         -- TODO
 
 -- Recipient List
 data OkrRcps = OkrRcps [String] deriving Show 
@@ -48,12 +51,48 @@ instance Show OkrId where show  ( OkrId c  n1  n2 )  =  "Id:{" ++ show n1  ++ " 
 
 -- Number of Okr [DDMthNNNNNN]
 data OkrNum = OkrN DayOfMth MthOfYear Int  -- deriving Show
-instance Show OkrNum where show  ( OkrN  (DayMth d) (Mth m)  n )  =  (show d) ++" "++ monthsOkrNames!!(m-1)  ++" №"  ++( show n) 
+instance Show OkrNum where show  ( OkrN  (DayMth d) (Mth m)  n )  =  (show d) ++" "++ tagMonths!!(m-1)  ++" №"  ++( show n) 
 
 data MthOfYear = Mth Int deriving Show
 data DayOfMth  = DayMth Int deriving ( Show , Eq )  
 data Cust      = Cust String deriving Show  
 
+-- BODY 
+data OkrAction = ActNew | ActEdt Edt  | ActDel  deriving Show
+
+-- ОКР изменение расписания
+data Edt = Edt Pdk deriving Show
+
+-- ПДК период действия корректировки
+data Pdk = Pdk OkrPeriod deriving Show
+
+-- Период дни недели либо дни месяца
+data OkrPeriod =   PerMd  MthWithDays |  PerWd  WeekDaysInterval  deriving Show
+
+ -- Month with dates  [MMM DD DD DD ...] 
+data MthWithDays = MthWithDays  MthOfYear MthDays deriving Show
+
+-- Days of month 
+data MthDays = MthDays [DayOfMth] deriving Show
+
+-- Month day interval with Week days  [DDMMM  DDMMM NNNNNNNN ]   (23МАР 13АВГ 1234567)
+data WeekDaysInterval = WeekDaysInterval MthDayInterval  WeekDays deriving Show
+
+--  Month day interval 23МАР 13АВГ 
+data MthDayInterval = MthDayInterval MthDay MthDay deriving Show
+
+-- [ DDMMM ]  01МАР, 31АВГ ....         
+data MthDay = MthDay DayOfMth  MthOfYear deriving Show
+
+-- day of week
+data Day    = Monday  | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday  deriving ( Show, Eq)
+instance Enum Day where
+   fromEnum = fromJust . flip lookup dayIndexes
+   toEnum = fromJust . flip lookup (map swap dayIndexes)
+dayIndexes = zip [ Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday ] [1..]
+
+-- days of week
+data WeekDays = WeekDays [ Day ] deriving Show
 
 -------------------------------------------------
 --- combinators helpers  
@@ -83,6 +122,11 @@ eol =   try (string "\n\r")
     <|> string "\n"
     <|> string "\r"
 
+--spaces = (many space) 
+spacesEol = spaces *> eol
+
+
+
 -- Row of telegram
 row = sepBy ( many (noneOf "\r\n")) eol 
 
@@ -91,8 +135,9 @@ row = sepBy ( many (noneOf "\r\n")) eol
 
 -- Main Okr parser 
 okr :: GenParser Char st Okr
-okr = liftM2 Okr (okrRcps <* eol )  okrHeader 
+okr = liftM2 Okr (okrRcps) okrHeader    -- <* eol 
 
+--okrRcps2 = liftM2 (,) okrRcps ( many $ noneOf "@" )
 
 -- Recipient List [== SSSSSSSSSSSSSSSSSSSSSSSS ....  ]  "==eeee\r\n==eeee \r\n==eeee\r\n"
 okrRcps :: GenParser Char st OkrRcps
@@ -100,11 +145,11 @@ okrRcps = liftM OkrRcps $ many1 $ liftM3 id2f3  (string "==")  ( many $ noneOf "
 
 -- Okr header parser
 okrHeader :: GenParser Char st OkrHeader
-okrHeader = liftM3 (\cap tz id -> OkrHeader cap tz id )  okrCaption timeZone okrId
+okrHeader = liftM3  OkrHeader  ( okrCaption <* spaces)  ( timeZone <* spaces ) okrId
 
 -- Caption section 
 okrCaption :: GenParser Char st OkrCaption
-okrCaption = liftM3 OkrCaption (okrType <* skipMany space) season year  -- todo
+okrCaption = liftM3 OkrCaption (okrType <* spaces) season year  -- todo
 
 -- Okr Type 
 okrType :: GenParser Char st OkrType
@@ -125,7 +170,7 @@ year = liftM (\v -> Year (read v) ) (count 2 digit )
 
 -- UTC or Local parser               
 timeZone :: GenParser Char st TimeZone
-timeZone =  ( liftM (\_ -> Utc ) $ strsAlt  [ "УТЦ", "UTC" ] )  <|>  ( liftM (\_ -> Utc ) $ strsAlt  [ "ЛТ", "LT" ] )
+timeZone =  ( liftM (\_ -> Utc ) $ strsAlt  [ "УТЦ", "UTC" ] )  <|>  ( liftM (\_ -> Loc ) $ strsAlt  [ "ЛТ", "LT" ] )
 
 
 -- parsers
@@ -144,13 +189,57 @@ day = liftM ( DayMth . read )  (count 2 digit)
 
 -- month number
 monthsOkr :: GenParser Char st MthOfYear
-monthsOkr = liftM Mth ( strsAltN $ zip monthsOkrNames [1..] ) 
+monthsOkr = liftM Mth ( strsAltN $ zip tagMonths [1..] ) 
 
 -- many digit chars to int
 num :: GenParser Char st Int
 num =  liftM read (many1 digit) 
-           
+
+--            
 cust :: GenParser Char st Cust
 cust = liftM Cust ( count 2 ( noneOf "/ \n" ) )    
             
+okrAction :: GenParser Char st OkrAction            
+okrAction =  anew <|> aedt <|>  adel where  
+                anew = liftM (\_ -> ActNew) $ strsAlt  tagActNew          
+                aedt = liftM3(\_ _ x -> ActEdt x)  ( strsAlt  tagActEdt ) eol edt
+                adel = liftM (\_ -> ActDel) $ strsAlt  tagActDel           
+  
+weekDay::  GenParser Char st Day
+weekDay = liftM (\x -> toEnum . read $ return x )  ( oneOf "1234567") 
 
+weekDays:: GenParser Char st WeekDays
+weekDays = liftM WeekDays ( many1 weekDay )
+
+edt:: GenParser Char st Edt
+edt = liftM Edt pdk 
+
+pdk:: GenParser Char st Pdk
+pdk =  liftM3 (\_ _ x -> Pdk x)  (strsAlt tagPdk) ( skipMany space)  okrPeriod 
+
+okrPeriod:: GenParser Char st OkrPeriod
+okrPeriod =  ( try $ liftM PerMd mthWithDays )  <|>  liftM  PerWd  weekDaysInterval 
+
+mthDayInterval :: GenParser Char st MthDayInterval
+mthDayInterval = liftM2 MthDayInterval mthDay ( many1 space >> mthDay)
+
+weekDaysInterval::GenParser Char st WeekDaysInterval
+weekDaysInterval = liftM2 WeekDaysInterval mthDayInterval ( many1 space >> weekDays)
+
+
+mthDay :: GenParser Char st MthDay
+mthDay = liftM2 MthDay day monthsOkr 
+
+mthWithDays :: GenParser Char st MthWithDays
+mthWithDays = liftM2 MthWithDays  monthsOkr ( many1 space >> mthDays)
+
+mthDays :: GenParser Char st MthDays
+mthDays =  liftM MthDays ( sepBy day space )
+
+
+---------------------------------------------------------------
+okrPeriod1T = "МАР 01 22 23 10 05"
+okrPeriod2T = "25ФЕВ 26ФЕВ 271"
+    
+pdkT1 = "ПДК МАР 01 22 23 10 05"
+pdkT2 = "PDK 25ФЕВ 26ФЕВ 271"         
