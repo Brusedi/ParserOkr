@@ -14,11 +14,13 @@ tagActNew = [ "NOV", "НОВ" ]
 tagActEdt = [ "IZM", "ИЗМ" ]
 tagActDel = [ "OTM", "ОТМ" ]
 tagPdk    = [ "ПДК", "PDK" ]
-
+tagOkr    = ["ОКР","OKR"]  
+tagUtc    = [ "УТЦ", "UTC" ] 
+tagLoc    = [ "ЛТ", "LT" ]
 ---------------------------------------------------
 --- STRUCTS 
 --- ОКР 
-data Okr = Okr OkrRcps OkrHeader -- OkrAction  deriving Show         -- TODO
+data Okr = Okr OkrRcps OkrHeader OkrAction  deriving Show         -- TODO
 
 -- Recipient List
 data OkrRcps = OkrRcps [String] deriving Show 
@@ -61,7 +63,7 @@ data Cust      = Cust String deriving Show
 data OkrAction = ActNew | ActEdt Edt  | ActDel  deriving Show
 
 -- ОКР изменение расписания
-data Edt = Edt Pdk deriving Show
+data Edt = Edt [Pdk] Flight deriving Show
 
 -- ПДК период действия корректировки
 data Pdk = Pdk OkrPeriod deriving Show
@@ -94,6 +96,8 @@ dayIndexes = zip [ Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunda
 -- days of week
 data WeekDays = WeekDays [ Day ] deriving Show
 
+-- Flight
+data Flight = Flight Cust Int deriving Show
 -------------------------------------------------
 --- combinators helpers  
 
@@ -121,6 +125,7 @@ eol =   try (string "\n\r")
     <|> try (string "\n\n")
     <|> string "\n"
     <|> string "\r"
+    <?> "end of line"
 
 --spaces = (many space) 
 spacesEol = spaces *> eol
@@ -135,7 +140,7 @@ row = sepBy ( many (noneOf "\r\n")) eol
 
 -- Main Okr parser 
 okr :: GenParser Char st Okr
-okr = liftM2 Okr (okrRcps) okrHeader    -- <* eol 
+okr = liftM3 Okr (okrRcps) (okrHeader <* spaces )  okrAction   -- <* eol 
 
 --okrRcps2 = liftM2 (,) okrRcps ( many $ noneOf "@" )
 
@@ -154,7 +159,7 @@ okrCaption = liftM3 OkrCaption (okrType <* spaces) season year  -- todo
 -- Okr Type 
 okrType :: GenParser Char st OkrType
 okrType  = try okrTypeOsc <|>  try okrTypeSdl <|>  okrTypeInf          
-okrTypeOsc = liftM (\_ -> Osc) $ strsAlt ["ОКР","OKR"]  
+okrTypeOsc = liftM (\_ -> Osc) $ strsAlt tagOkr  
 okrTypeSdl = liftM (\_ -> Sdl) $ string "РСП"  
 okrTypeInf = liftM (\_ -> Inf) $ string "ИНФ"  
 
@@ -170,7 +175,7 @@ year = liftM (\v -> Year (read v) ) (count 2 digit )
 
 -- UTC or Local parser               
 timeZone :: GenParser Char st TimeZone
-timeZone =  ( liftM (\_ -> Utc ) $ strsAlt  [ "УТЦ", "UTC" ] )  <|>  ( liftM (\_ -> Loc ) $ strsAlt  [ "ЛТ", "LT" ] )
+timeZone =  ( liftM (\_ -> Utc ) $ strsAlt tagUtc )  <|>  ( liftM (\_ -> Loc ) $ strsAlt tagLoc )
 
 
 -- parsers
@@ -201,9 +206,9 @@ cust = liftM Cust ( count 2 ( noneOf "/ \n" ) )
             
 okrAction :: GenParser Char st OkrAction            
 okrAction =  anew <|> aedt <|>  adel where  
-                anew = liftM (\_ -> ActNew) $ strsAlt  tagActNew          
-                aedt = liftM3(\_ _ x -> ActEdt x)  ( strsAlt  tagActEdt ) eol edt
-                adel = liftM (\_ -> ActDel) $ strsAlt  tagActDel           
+                anew = liftM (const ActNew) $ strsAlt  tagActNew          
+                aedt = liftM2 (\_ x -> ActEdt x)  ( strsAlt tagActEdt <* spaces )  edt
+                adel = liftM (const ActDel) $ strsAlt  tagActDel           
   
 weekDay::  GenParser Char st Day
 weekDay = liftM (\x -> toEnum . read $ return x )  ( oneOf "1234567") 
@@ -212,7 +217,7 @@ weekDays:: GenParser Char st WeekDays
 weekDays = liftM WeekDays ( many1 weekDay )
 
 edt:: GenParser Char st Edt
-edt = liftM Edt pdk 
+edt = liftM2 Edt ( many1 (pdk <* eol) )  flight
 
 pdk:: GenParser Char st Pdk
 pdk =  liftM3 (\_ _ x -> Pdk x)  (strsAlt tagPdk) ( skipMany space)  okrPeriod 
@@ -231,15 +236,19 @@ mthDay :: GenParser Char st MthDay
 mthDay = liftM2 MthDay day monthsOkr 
 
 mthWithDays :: GenParser Char st MthWithDays
-mthWithDays = liftM2 MthWithDays  monthsOkr ( many1 space >> mthDays)
+mthWithDays = liftM3 (\x _ y -> MthWithDays x y)  monthsOkr space  mthDays
 
 mthDays :: GenParser Char st MthDays
-mthDays =  liftM MthDays ( sepBy day space )
+mthDays =  liftM MthDays ( spaces *> many ( day <* spaces) ) --( sepBy day space ) 
 
+flight :: GenParser Char st Flight
+flight =  liftM2 (\c n ->  Flight c $ read n ) cust (many1 digit)  
 
 ---------------------------------------------------------------
 okrPeriod1T = "МАР 01 22 23 10 05"
 okrPeriod2T = "25ФЕВ 26ФЕВ 271"
     
 pdkT1 = "ПДК МАР 01 22 23 10 05"
-pdkT2 = "PDK 25ФЕВ 26ФЕВ 271"         
+pdkT2 = "PDK 25ФЕВ 26ФЕВ 271"
+
+pdkT3 = "PDK 25ФЕВ 26ФЕВ 271\r\nPDK 25ФЕВ 26ФЕВ 271\r\nPDK 25ФЕВ 26ФЕВ 271\r\nПДК МАР 01 22 23 10 05\r\nПДК МАР 01 22 23 10 05 \r\n"         

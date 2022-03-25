@@ -5,7 +5,7 @@ import Text.ParserCombinators.Parsec
 import OkrParser
 
 -- 
-fileContents = do  contents <- readFile "okr5.rpt"
+fileContents = do  contents <- readFile "okr6.rpt"
                    return contents
 
 okrContents :: GenParser Char st [String]
@@ -35,4 +35,6 @@ okrTest n = do fParsRes <- okrTopTest  n
 
 
 
+
+tst = "==НЖВ_10=10341 \r\n==РЩН_06=20061 \r\n==ЮТ_04=35458  \r\nOKR  Л22 \r\nЛТ \r\n16МАР8176/16МАР354/ЮТ \r\nИЗМ \r\nПДК  27МАР 26ОКТ 37 \r\n"
 
