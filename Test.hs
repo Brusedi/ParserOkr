@@ -31,7 +31,7 @@ okrTopTest n = do fcnt <- fileContents
 --okr::n -> IO (Either ParseError [Either ParseError Okr])
 okrTest n = do fParsRes <- okrTopTest  n
                return $ do x <- fParsRes
-                           return $ map ( \i -> parse okr "(unknown)" i ) x              ---okrRcps2
+                           return $ map ( \i -> parse okr ":(" i ) x              ---okrRcps2
 
 
 

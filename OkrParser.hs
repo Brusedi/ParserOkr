@@ -217,10 +217,17 @@ weekDays:: GenParser Char st WeekDays
 weekDays = liftM WeekDays ( many1 weekDay )
 
 edt:: GenParser Char st Edt
-edt = liftM2 Edt ( many1 (pdk <* eol) )  flight
+--edt = liftM2 Edt ( many1 pdk )    (flight <* eol)
+edt = do px <- many1 pdk
+         f <- flight 
+         return $ Edt px f
 
 pdk:: GenParser Char st Pdk
-pdk =  liftM3 (\_ _ x -> Pdk x)  (strsAlt tagPdk) ( skipMany space)  okrPeriod 
+--pdk =  liftM3 (\_ _ x -> Pdk x)  (strsAlt tagPdk) ( skipMany space)  okrPeriod 
+pdk = liftM Pdk ( (strsAlt tagPdk) *> spaces *> okrPeriod <* eol )
+
+--okrRcps = liftM OkrRcps $ many1 $ liftM3 id2f3  (string "==")  ( many $ noneOf "\r\n" ) ( eol )  
+
 
 okrPeriod:: GenParser Char st OkrPeriod
 okrPeriod =  ( try $ liftM PerMd mthWithDays )  <|>  liftM  PerWd  weekDaysInterval 
@@ -235,6 +242,7 @@ weekDaysInterval = liftM2 WeekDaysInterval mthDayInterval ( many1 space >> weekD
 mthDay :: GenParser Char st MthDay
 mthDay = liftM2 MthDay day monthsOkr 
 
+-- работает с ошибкой !
 mthWithDays :: GenParser Char st MthWithDays
 mthWithDays = liftM3 (\x _ y -> MthWithDays x y)  monthsOkr space  mthDays
 
