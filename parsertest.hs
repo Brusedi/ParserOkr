@@ -6,7 +6,7 @@ import Control.Monad
 
 import OkrParser
  
-p =   spaces *> many ( day <* spaces  ))
+p =   spaces *> many ( day <* spaces  )
 
 --p1 sepBy
 
@@ -32,5 +32,6 @@ b = "NNNe"
 
 a = a1++"\n"++a2++"\n"++a3 ++"\n"++a0++"\n"++b++"\n"   
 
+t4 = parse p "(unknown)" a             
 
 --ta = t . t1 . t2 . t3 

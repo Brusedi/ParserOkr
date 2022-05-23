@@ -130,7 +130,8 @@ eol =   try (string "\n\r")
 --spaces = (many space) 
 spacesEol = spaces *> eol
 
-
+-- only space wo rn
+sps =  char ' '
 
 -- Row of telegram
 row = sepBy ( many (noneOf "\r\n")) eol 
@@ -247,7 +248,7 @@ mthWithDays :: GenParser Char st MthWithDays
 mthWithDays = liftM3 (\x _ y -> MthWithDays x y)  monthsOkr space  mthDays
 
 mthDays :: GenParser Char st MthDays
-mthDays =  liftM MthDays ( spaces *> many ( day <* spaces) ) --( sepBy day space ) 
+mthDays =  liftM MthDays (sepBy day sps)  --( sps *> many ( day <* sps) ) --( sepBy day space ) --mthDays =  liftM MthDays ( spaces *> many ( day <* spaces) ) --( sepBy day space ) 
 
 flight :: GenParser Char st Flight
 flight =  liftM2 (\c n ->  Flight c $ read n ) cust (many1 digit)  
